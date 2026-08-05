@@ -267,6 +267,8 @@ No build step. No dependencies to install for the app itself. Edit a file, reloa
 | `icons/` | App icons — generated, not hand-drawn. See below. |
 | `tools/gen_icons.py` | Regenerates those icons. |
 | `tools/mock_jules.py` | A fake Jules API for offline development and tests. |
+| `tools/mock_bitbucket.py` | A fake Bitbucket API, same idea. |
+| `tools/test_e2e.py` | The end-to-end suite, run in a headless browser. |
 | `.github/workflows/deploy-pages.yml` | Manual "publish" button. Never runs on its own. |
 | `.nojekyll` | Tells GitHub Pages to serve the files as-is. |
 
@@ -310,12 +312,27 @@ Environment variables for testing edge cases:
 | `EMPTY=1` | `GET /sources` returns nothing — exercises the "no repositories" state. |
 | `RATELIMIT=1` | Every 3rd request answers `429` with `Retry-After: 1`. |
 
-End-to-end tests run against this mock, never against the real API, so they cost nothing and
-can't touch your repositories:
+`tools/mock_bitbucket.py` does the same for Bitbucket on port 8788, with
+`EMPTY=1` and `UNAUTHORIZED=1` switches. Its valid credentials are the email
+`test@example.com` with the token `test-bb-token`. Point the app at both mocks at once:
 
 ```
-python3 tools/test_e2e.py
+http://localhost:8080/?apiBase=http://localhost:8787/v1alpha&bitbucketApiBase=http://localhost:8788/2.0
 ```
+
+End-to-end tests run against these mocks, never against the real APIs, so they cost nothing
+and can't touch your repositories. They drive a real browser through onboarding, a whole
+task from creation to completion, chat, both Bitbucket paths, and Settings — at both iPad
+orientations — and fail on any unexpected console error:
+
+```
+python3 tools/test_e2e.py --serve
+```
+
+`--serve` starts the app server and both mocks itself; drop it if you already have them
+running. The suite also checks two things that are easy to break silently: that no file
+uses an absolute path (which would break the app on a GitHub Pages sub-path), and that
+`sw.js` caches every file the app actually ships.
 
 ### The icons
 

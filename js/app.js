@@ -219,10 +219,6 @@ const ctx = {
     teardownSidebar();
     navigate('/onboarding', { replace: true });
   },
-
-  isWide() {
-    return window.matchMedia('(min-width: 768px)').matches;
-  },
 };
 
 function teardownDetail() {

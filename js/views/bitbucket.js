@@ -85,6 +85,7 @@ export function mount(container, params, ctx) {
   let selectedWorkspace = getSetting('bitbucketWorkspace', '');
   let selectedRepo = null;
   let busy = false;
+  let workspacesLoaded = false;
 
   /* ---------- chrome ---------- */
 
@@ -286,6 +287,7 @@ export function mount(container, params, ctx) {
           slug: w && w.slug ? String(w.slug) : '',
           name: w && w.name ? String(w.name) : '',
         })).filter((w) => w.slug);
+        workspacesLoaded = true;
         // Pick a workspace straight away, otherwise the repository list below
         // has nothing to load from and sits there disabled.
         if (workspaces.length && !workspaces.some((w) => w.slug === selectedWorkspace)) {
@@ -384,7 +386,11 @@ export function mount(container, params, ctx) {
     // Workspace
     const wsSelect = el('select', { class: 'select', 'aria-label': 'Workspace' });
     if (!workspaces.length) {
-      wsSelect.appendChild(el('option', { value: '' }, 'Loading…'));
+      // A repository-scoped token legitimately cannot list workspaces. Say so,
+      // rather than leaving a disabled control that looks stuck loading.
+      wsSelect.appendChild(
+        el('option', { value: '' }, workspacesLoaded ? 'Not available for this token' : 'Loading…')
+      );
       wsSelect.disabled = true;
     } else {
       wsSelect.disabled = false;
@@ -517,11 +523,11 @@ export function mount(container, params, ctx) {
         )
       );
     }
-    let renderFilesTimer = null;
     const scheduleRenderFiles = () => {
       if (renderFilesTimer) clearTimeout(renderFilesTimer);
       renderFilesTimer = setTimeout(() => {
         renderFilesTimer = null;
+        if (destroyed || !selectedRepo) return;
         setSetting('githubOwner', String(ownerInput.value || '').trim());
         setSetting('githubMirrorRepo:' + selectedRepo.slug, String(repoInput.value || '').trim());
         renderFiles();
@@ -736,6 +742,7 @@ export function mount(container, params, ctx) {
       const list = await bitbucket.listWorkspaces({ signal: abortController.signal });
       if (destroyed) return;
       workspaces = list;
+      workspacesLoaded = true;
       if (!selectedWorkspace && workspaces.length) selectedWorkspace = workspaces[0].slug;
       render();
       loadRepos();
@@ -743,6 +750,7 @@ export function mount(container, params, ctx) {
       if (destroyed || (err && err.name === 'AbortError')) return;
       // A repo-scoped token cannot list workspaces; that is expected, not an error.
       workspaces = [];
+      workspacesLoaded = true;
       render();
     }
   }

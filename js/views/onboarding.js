@@ -351,7 +351,7 @@ export function mount(container, params, ctx) {
 
   // Focus the field on wide screens only — an auto-popping keyboard on a narrow
   // layout hides the instructions the user still needs to read.
-  if (window.matchMedia('(min-width: 768px)').matches) {
+  if (window.matchMedia('(min-width: 900px)').matches) {
     requestAnimationFrame(() => {
       try {
         input.focus();

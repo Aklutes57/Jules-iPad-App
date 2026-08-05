@@ -227,12 +227,15 @@ export function mount(container, params, ctx) {
       return;
     }
 
-    // Direct-mode sessions know their branch; mirror-mode ones must be told,
-    // since the branch name is Jules' choice on the GitHub side.
-    let branch = origin.workBranch || '';
+    // Three ways to learn the branch, best first:
+    //   direct mode  — the app chose the name itself
+    //   mirror mode  — Jules opened a PR on GitHub, whose headRef is the branch
+    //   otherwise    — ask, since only the activity feed knows
+    const pr = pullRequestOf(session);
+    let branch = origin.workBranch || (pr && pr.headRef ? String(pr.headRef) : '');
     if (!branch) {
       const guess = window.prompt(
-        'Which branch did Jules push? (visible in the activity feed, usually starting with "jules/")',
+        'Which branch did Jules push? (shown in the activity feed, usually starting with "jules/")',
         'jules/'
       );
       branch = guess ? String(guess).trim() : '';
