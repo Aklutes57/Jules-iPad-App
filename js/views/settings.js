@@ -1,7 +1,15 @@
 // views/settings.js — key management, polling speed, and an escape hatch.
 
 import { CONFIG, POLL_PRESETS, pollSpeed, apiBase, isPlausibleApiBase } from '../config.js';
-import { getApiKey, clearApiKey, getSetting, setSetting, isPersistent } from '../storage.js';
+import {
+  getApiKey,
+  clearApiKey,
+  getSetting,
+  setSetting,
+  isPersistent,
+  getBitbucketCredential,
+  getMirrorLinks,
+} from '../storage.js';
 import { clearSourcesCache } from '../api.js';
 import { el, icon, iconButton, segmented, confirmSheet, toast, clear, externalLink } from '../ui.js';
 
@@ -82,6 +90,54 @@ export function mount(container, params, ctx) {
     : 'This browser is not saving data (Private Browsing?), so the key will be forgotten when you close the tab.';
   keySection.appendChild(el('p', 'form-help', keyNote));
   scroll.appendChild(keySection);
+
+  /* ---------- Bitbucket ---------- */
+
+  const bbSection = el('section', 'form-section');
+  bbSection.appendChild(el('h2', 'form-legend', 'Bitbucket'));
+  const bbCard = el('div', 'card');
+  const bbCredential = getBitbucketCredential();
+
+  bbCard.appendChild(
+    el(
+      'div',
+      'row-item',
+      el('span', 'row-item-label', 'Connection'),
+      el('span', 'row-item-value', bbCredential ? 'Connected' : 'Not connected')
+    )
+  );
+
+  const links = getMirrorLinks();
+  const linkCount = Object.keys(links).length;
+  if (bbCredential) {
+    bbCard.appendChild(
+      el(
+        'div',
+        'row-item',
+        el('span', 'row-item-label', 'Linked mirrors'),
+        el('span', 'row-item-value', String(linkCount))
+      )
+    );
+  }
+
+  const bbBtn = el(
+    'button',
+    { class: 'row-item row-item--button', type: 'button' },
+    bbCredential ? 'Manage Bitbucket' : 'Connect Bitbucket'
+  );
+  bbBtn.addEventListener('click', () => {
+    if (ctx && ctx.navigate) ctx.navigate('/bitbucket');
+  });
+  bbCard.appendChild(bbBtn);
+  bbSection.appendChild(bbCard);
+  bbSection.appendChild(
+    el(
+      'p',
+      'form-help',
+      'Jules can only read GitHub repositories, so Bitbucket projects reach it through a mirror — or, experimentally, by letting Jules clone Bitbucket itself. Set either up on the Bitbucket screen.'
+    )
+  );
+  scroll.appendChild(bbSection);
 
   /* ---------- polling ---------- */
 

@@ -143,6 +143,84 @@ almost always means: **this isn't a valid Jules key.** Keys from other Google pr
   message Jules suggests.
 - **Open the pull request** — one tap through to GitHub when it's done.
 - **Tidy up** — archive tasks you're finished with, or delete them.
+- **Work from Bitbucket** — see the next section.
+
+---
+
+## Using Bitbucket instead of GitHub
+
+**The thing to know first:** Jules can only read GitHub repositories. That is Google's
+limitation, not this app's — Jules' own documentation says it "can only access repositories
+you explicitly allow through GitHub", and support for other version-control systems is
+listed as future work. So there is no switch anywhere that makes Jules read Bitbucket
+directly.
+
+What this app does instead is bridge the gap, two ways. Open **Settings → Bitbucket** (or
+the Bitbucket tab on the New Task screen) to set either one up.
+
+### First, connect Bitbucket
+
+You need an **Atlassian API token**. Bitbucket app passwords were removed in July 2026, so
+tokens are the only option now.
+
+1. Go to <https://id.atlassian.com/manage-profile/security/api-tokens>.
+2. Create an **API token with scopes** and tick these Bitbucket scopes:
+   `read:workspace:bitbucket`, `read:repository:bitbucket`, `write:repository:bitbucket`,
+   `read:pullrequest:bitbucket`, `write:pullrequest:bitbucket`.
+3. Paste it into the app along with the email address of your Atlassian account.
+
+The token is stored on your device only, exactly like the Jules key, and the app talks to
+`api.bitbucket.org` straight from the browser — still no server in the middle.
+
+If you would rather not hand over an account-wide token, use a **repository access token**
+instead (Repository settings → Access tokens in Bitbucket) and pick "Repo token" in the app.
+It can do less, which is the point.
+
+### Path 1 — mirror to a private GitHub repo (recommended)
+
+Bitbucket stays the place your code lives. A private GitHub repo holds a copy, and that copy
+is what Jules is connected to. Everything Jules can normally do keeps working, and the
+branches it creates come back to Bitbucket on their own.
+
+The app generates both files for you, filled in with your repository names:
+
+- `bitbucket-pipelines.yml` — goes in your Bitbucket repo. Every push mirrors to GitHub.
+- `.github/workflows/sync-jules-to-bitbucket.yml` — goes in the GitHub mirror. It pushes
+  branches Jules created (`jules/**`) back to Bitbucket.
+
+Follow the numbered steps on the Bitbucket screen — create the private mirror repo, enable
+Pipelines, add the SSH deploy key, paste the two files, connect Jules to the mirror at
+jules.google.com, then come back and **link** the mirror so the app knows the two belong
+together. After that, starting a task on that Bitbucket repo just works.
+
+One detail worth knowing, because most tutorials online get it wrong: the generated pipeline
+pushes with `git push --force --all`, **not** `git push --mirror`. `--mirror` deletes
+branches on the far end that don't exist locally, which would wipe out every branch Jules
+creates on GitHub on the very next sync.
+
+### Path 2 — let Jules clone Bitbucket itself (experimental)
+
+Jules starts on a blank machine, clones your Bitbucket repo, does the work, and pushes a
+`jules/...` branch straight back. GitHub is never involved.
+
+Two honest caveats:
+
+- **It may not work at all.** This depends on Jules' sandbox being allowed to reach the
+  internet, which Google does not document either way. The Bitbucket screen has a
+  **connectivity check** — one tap, one throwaway task, and you'll know for certain on your
+  own account. Run that before relying on this path.
+- **Your Bitbucket token goes to Google.** It has to travel inside the task text so Jules can
+  clone, which means it is stored with the session on Google's side. Use a repository access
+  token with a short expiry for this, not your account-wide one.
+
+### Opening the pull request
+
+Jules cannot open a Bitbucket pull request — it doesn't know Bitbucket exists. So when a task
+that started from Bitbucket finishes, the app shows a **Bitbucket PR** button and opens the
+pull request for you through Bitbucket's API.
+
+If you used the mirror path, give the back-sync workflow a moment to carry the branch across
+before pressing it.
 
 ---
 
@@ -177,7 +255,9 @@ No build step. No dependencies to install for the app itself. Edit a file, reloa
 | `css/app.css` | All styling, including dark mode and safe-area insets. |
 | `js/config.js` | Every tunable constant, including the one API base URL. |
 | `js/api.js` | The only module that talks to the Jules API. |
-| `js/storage.js` | Reading and writing the key and settings, defensively. |
+| `js/bitbucket.js` | The only module that talks to the Bitbucket API. |
+| `js/bridge.js` | Builds the two ways a Bitbucket repo reaches Jules. |
+| `js/storage.js` | Reading and writing the keys and settings, defensively. |
 | `js/ui.js` | The `el()` DOM builder and shared interface pieces. |
 | `js/activity.js` | Renders one activity from the feed. |
 | `js/diff.js` | Renders a unified diff. |

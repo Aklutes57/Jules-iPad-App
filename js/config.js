@@ -7,6 +7,12 @@ export const CONFIG = {
   // when it graduates, this single string is what changes.
   API_BASE_DEFAULT: 'https://jules.googleapis.com/v1alpha',
 
+  // Bitbucket Cloud's REST API. Verified Aug 2026: it answers CORS preflights
+  // with `Access-Control-Allow-Origin: *` and allows the Authorization header,
+  // so this static page can call it with no server in between. (Because the
+  // allow-origin is `*`, requests must never use credentials:'include'.)
+  BITBUCKET_API_BASE_DEFAULT: 'https://api.bitbucket.org/2.0',
+
   // How often to re-poll a session that is actively doing something.
   POLL_ACTIVE_MS: 4000,
   // Fallback cadence for anything that polls while nothing is happening.
@@ -70,6 +76,17 @@ export function sessionsRefreshMs() {
 export function apiBase() {
   const override = getSetting('apiBase', null);
   const base = typeof override === 'string' && override.trim() ? override.trim() : CONFIG.API_BASE_DEFAULT;
+  return base.replace(/\/+$/, '');
+}
+
+/**
+ * Resolve the Bitbucket API base (Settings override, else the default).
+ * @returns {string} base URL with no trailing slash.
+ */
+export function bitbucketApiBase() {
+  const override = getSetting('bitbucketApiBase', null);
+  const base =
+    typeof override === 'string' && override.trim() ? override.trim() : CONFIG.BITBUCKET_API_BASE_DEFAULT;
   return base.replace(/\/+$/, '');
 }
 

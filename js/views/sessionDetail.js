@@ -28,6 +28,8 @@ import {
   openExternal,
   formatTime,
 } from '../ui.js';
+import { bitbucket } from '../bitbucket.js';
+import { getSessionOrigin, getBitbucketCredential } from '../storage.js';
 
 const NEAR_BOTTOM_PX = 140;
 
@@ -73,6 +75,9 @@ export function mount(container, params, ctx) {
   let lastRenderedState = null;
   let sending = false;
   let approving = false;
+  /** Set when this task started from a Bitbucket repository (see js/bridge.js). */
+  const origin = getSessionOrigin(id);
+  let creatingPr = false;
 
   /** name -> activity (includes optimistic placeholders) */
   const byName = new Map();
@@ -173,6 +178,19 @@ export function mount(container, params, ctx) {
       headerActions.appendChild(prBtn);
     }
 
+    // Tasks that came from Bitbucket get a PR button of their own: Jules has no
+    // idea Bitbucket exists, so the app opens the pull request on its behalf.
+    if (origin && session && !ACTIVE_STATES.has(session.state)) {
+      const bbBtn = el(
+        'button',
+        { class: 'btn btn--tonal btn--tight', type: 'button', title: 'Open a pull request on Bitbucket' },
+        icon('pr', { size: 17 }),
+        el('span', 'btn-label', 'Bitbucket PR')
+      );
+      bbBtn.addEventListener('click', openBitbucketPr);
+      headerActions.appendChild(bbBtn);
+    }
+
     if (session && session.url) {
       const openBtn = el(
         'button',
@@ -191,6 +209,70 @@ export function mount(container, params, ctx) {
     );
 
     headerActions.appendChild(iconButton('dots', 'More actions', openMenu));
+  }
+
+  /**
+   * Open a pull request on Bitbucket for a task that started there.
+   *
+   * Jules pushes its work to a branch — on the GitHub mirror (mirror mode, from
+   * where the back-sync workflow carries it to Bitbucket) or straight to
+   * Bitbucket (direct mode). Either way the PR itself has to be opened here,
+   * because Jules has no concept of Bitbucket.
+   */
+  async function openBitbucketPr() {
+    if (creatingPr || !origin) return;
+    if (!getBitbucketCredential()) {
+      toast('Connect Bitbucket first.', { tone: 'error' });
+      if (ctx && ctx.navigate) ctx.navigate('/bitbucket');
+      return;
+    }
+
+    // Direct-mode sessions know their branch; mirror-mode ones must be told,
+    // since the branch name is Jules' choice on the GitHub side.
+    let branch = origin.workBranch || '';
+    if (!branch) {
+      const guess = window.prompt(
+        'Which branch did Jules push? (visible in the activity feed, usually starting with "jules/")',
+        'jules/'
+      );
+      branch = guess ? String(guess).trim() : '';
+      if (!branch) return;
+    }
+
+    const target = origin.branch || 'main';
+    const ok = await confirmSheet(
+      'Open a pull request on Bitbucket from “' + branch + '” into “' + target + '”?',
+      { confirmLabel: 'Create pull request', title: 'Bitbucket pull request' }
+    );
+    if (!ok || destroyed) return;
+
+    creatingPr = true;
+    try {
+      const pr = await bitbucket.createPullRequest({
+        workspace: origin.workspace,
+        repo: origin.repo,
+        title: sessionTitle(session),
+        sourceBranch: branch,
+        destinationBranch: target,
+        description: 'Created by Jules.\n\nSession: ' + (session && session.url ? session.url : id),
+      });
+      if (destroyed) return;
+      creatingPr = false;
+      const url = pr && pr.links && pr.links.html && pr.links.html.href ? pr.links.html.href : '';
+      toast('Pull request created.', url ? { action: { label: 'Open', onClick: () => openExternal(url) } } : undefined);
+    } catch (err) {
+      if (destroyed) return;
+      creatingPr = false;
+      const message = (err && err.message) || 'Could not create the pull request.';
+      // The most common cause is the branch not being on Bitbucket yet — in
+      // mirror mode the back-sync workflow may still be running.
+      toast(
+        /branch/i.test(message)
+          ? message + ' If this task used a mirror, wait for the sync workflow to finish and try again.'
+          : message,
+        { tone: 'error' }
+      );
+    }
   }
 
   function renderStatusStrip() {

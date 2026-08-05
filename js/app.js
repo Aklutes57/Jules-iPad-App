@@ -15,6 +15,7 @@ import * as dashboardView from './views/dashboard.js';
 import * as newSessionView from './views/newSession.js';
 import * as sessionDetailView from './views/sessionDetail.js';
 import * as settingsView from './views/settings.js';
+import * as bitbucketView from './views/bitbucket.js';
 
 /* ------------------------------------------------------------------ */
 /* Shell references                                                    */
@@ -42,26 +43,39 @@ function consumeApiBaseParam() {
   } catch (_err) {
     return;
   }
-  if (!url.searchParams.has('apiBase')) return;
 
-  const raw = url.searchParams.get('apiBase') || '';
-  url.searchParams.delete('apiBase');
+  // Both API bases can be pointed at a local mock for testing. Neither may be
+  // pointed anywhere else from a link: accepting an arbitrary origin here would
+  // hand this user's API key (or Bitbucket token) to whoever sent the link.
+  const overrides = [
+    { param: 'apiBase', setting: 'apiBase', label: 'Jules' },
+    { param: 'bitbucketApiBase', setting: 'bitbucketApiBase', label: 'Bitbucket' },
+  ];
 
-  // Strip the parameter from the address bar either way, so a reload cannot
-  // re-apply it and the URL stays shareable.
+  let touched = false;
+  for (const entry of overrides) {
+    if (!url.searchParams.has(entry.param)) continue;
+    touched = true;
+    const raw = url.searchParams.get(entry.param) || '';
+    url.searchParams.delete(entry.param);
+
+    if (isLocalApiBase(raw)) {
+      setSetting(entry.setting, raw.trim().replace(/\/+$/, ''));
+      bootWarning = 'Using a local ' + entry.label + ' API base for testing: ' + raw;
+    } else {
+      bootWarning =
+        'Ignored the ' + entry.param + ' in that link — only localhost addresses are allowed this way.';
+    }
+  }
+
+  if (!touched) return;
+
+  // Strip the parameters from the address bar either way, so a reload cannot
+  // re-apply them and the URL stays shareable.
   try {
     window.history.replaceState(null, '', url.pathname + url.search + url.hash);
   } catch (_err) {
     /* replaceState can throw in exotic sandboxes; not fatal. */
-  }
-
-  if (isLocalApiBase(raw)) {
-    setSetting('apiBase', raw.trim().replace(/\/+$/, ''));
-    bootWarning = 'Using a local API base for testing: ' + raw;
-  } else {
-    // Accepting an arbitrary origin from a link would hand this user's API key
-    // to whoever sent the link.
-    bootWarning = 'Ignored the apiBase in that link — only localhost addresses are allowed this way.';
   }
 }
 
@@ -306,6 +320,9 @@ function handleRoute(route) {
       break;
     case 'settings':
       unmountDetail = settingsView.mount(detailPane, route.params, ctx);
+      break;
+    case 'bitbucket':
+      unmountDetail = bitbucketView.mount(detailPane, route.params, ctx);
       break;
     default:
       unmountDetail = mountDetailPlaceholder();
