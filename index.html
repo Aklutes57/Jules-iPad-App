@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Jules</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="A touch-first iPad client for Google Jules.">
+  <meta name="color-scheme" content="light dark">
+
+  <!-- Home-screen / standalone behaviour on iPadOS -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Jules">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="format-detection" content="telephone=no">
+
+  <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+
+  <link rel="apple-touch-icon" href="./icons/icon-180.png">
+  <link rel="icon" href="./icons/icon-192.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./css/app.css">
+
+  <script type="module" src="./js/app.js"></script>
+</head>
+<body data-route="dashboard">
+
+  <!-- Shown by app.js when the device goes offline. -->
+  <div id="offline-banner" class="offline-banner" role="status" aria-live="polite" hidden></div>
+
+  <!-- Two panes. CSS decides which are visible at each breakpoint; views render into them. -->
+  <div id="app-shell" class="app-shell">
+    <div id="pane-sidebar" class="pane pane--sidebar"></div>
+    <div id="pane-detail" class="pane pane--detail"></div>
+  </div>
+
+  <!-- Transient UI, appended to by ui.js. -->
+  <div id="toast-slot" class="toast-slot" role="region" aria-live="polite" aria-label="Notifications"></div>
+  <div id="sheet-slot" class="sheet-slot"></div>
+
+  <noscript>
+    <div class="noscript">
+      <h1>Jules needs JavaScript</h1>
+      <p>This app runs entirely in your browser and talks to the Jules API directly, so JavaScript has to be enabled.</p>
+    </div>
+  </noscript>
+
+</body>
+</html>
