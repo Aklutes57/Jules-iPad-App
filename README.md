@@ -46,6 +46,11 @@ You don't have to put this on the internet to use it. You can serve it from a Ma
 your home Wi-Fi and open it on the iPad. Nothing leaves your network except the app's calls
 to Google.
 
+> **On Windows?** There is a step-by-step guide with a double-clickable launcher:
+> **[SETUP-WINDOWS.md](SETUP-WINDOWS.md)**. It covers installing Python, the firewall prompt,
+> finding your PC's address, and what to do when it doesn't work. The instructions below are
+> the short version.
+
 **On the computer** (it needs to stay awake and on the same Wi-Fi as the iPad):
 
 1. Open Terminal (Mac) or Command Prompt (Windows).
@@ -80,34 +85,49 @@ approve plans, read diffs, open pull requests.
 
 ---
 
-## Publish to a website later, after approval
+## Putting it on the web (optional)
 
-If you'd rather have a permanent link — and you have whatever approval you need to make the
-repository public — GitHub can host this for free. Pick **one** of these.
+You do not need this. The app is fully functional over your own Wi-Fi. But if you want a
+permanent HTTPS address — which is also what unlocks **Add to Home Screen** and offline
+caching — here is the honest state of play.
 
-### Option A — the simple one (no workflow involved)
+### If this repository is public
 
-1. On GitHub, open this repository and go to **Settings → Pages**.
-2. Under **Source**, choose **Deploy from a branch**.
-3. Pick this branch, and folder **`/ (root)`**. Click **Save**.
-4. Wait a minute or two, then reload the page — GitHub shows the address at the top.
+GitHub can host it for free. Pick one:
 
-### Option B — the manual button
+**Option A — the simple one.** Repository **Settings → Pages**, set **Source** to
+**Deploy from a branch**, choose this branch and folder **`/ (root)`**, then **Save**. Wait a
+minute or two and GitHub shows the address at the top of that page.
 
-1. **Settings → Pages → Source: GitHub Actions**.
-2. Go to the **Actions** tab, choose **Deploy to GitHub Pages** in the left-hand list, then
-   click **Run workflow**.
+**Option B — the manual button.** **Settings → Pages → Source: GitHub Actions**, then the
+**Actions** tab → **Deploy to GitHub Pages** → **Run workflow**.
 
 Option B exists because this repository ships a deploy workflow
 (`.github/workflows/deploy-pages.yml`) that is **deliberately inert**: it has no automatic
-trigger at all, so it never runs on its own or on a push. It only ever runs when you press
-the button. Until then, publishing nothing is the default.
+trigger, so it never runs on a push. It only ever runs when you press the button.
+
+### If this repository is private
+
+**GitHub Pages is not the answer**, for two reasons that stack:
+
+- Pages from a private repository requires a paid **GitHub Pro** plan.
+- Even on Pro, **the published site is still public**. Publishing a Pages site privately is
+  a GitHub Enterprise Cloud feature. So paying would not buy you a private site.
+
+So with a private repository, run it over your own Wi-Fi (above). If you specifically want
+the Home Screen install and offline mode back, Cloudflare Pages, Netlify and Vercel all
+deploy from a private GitHub repository on their free tiers and give you HTTPS — but note the
+resulting *site* is still a public URL unless you add access control on top.
+
+Worth keeping straight: making the repository private protects **this app's source code**.
+It is not what protects your own work — the app holds no secrets, and your API key never
+leaves your device.
 
 ### Then, on the iPad
 
-Open **`https://YOUR-USERNAME.github.io/REPO-NAME/`** in Safari, tap the **Share** button,
-and choose **Add to Home Screen**. Now it opens full-screen from your Home Screen like any
-other app, and it keeps working when the Wi-Fi drops out.
+Open the address in Safari, tap the **Share** button, and choose **Add to Home Screen**. It
+then opens full-screen from your Home Screen like any other app, and keeps working when the
+Wi-Fi drops out.
 
 ---
 
@@ -143,84 +163,6 @@ almost always means: **this isn't a valid Jules key.** Keys from other Google pr
   message Jules suggests.
 - **Open the pull request** — one tap through to GitHub when it's done.
 - **Tidy up** — archive tasks you're finished with, or delete them.
-- **Work from Bitbucket** — see the next section.
-
----
-
-## Using Bitbucket instead of GitHub
-
-**The thing to know first:** Jules can only read GitHub repositories. That is Google's
-limitation, not this app's — Jules' own documentation says it "can only access repositories
-you explicitly allow through GitHub", and support for other version-control systems is
-listed as future work. So there is no switch anywhere that makes Jules read Bitbucket
-directly.
-
-What this app does instead is bridge the gap, two ways. Open **Settings → Bitbucket** (or
-the Bitbucket tab on the New Task screen) to set either one up.
-
-### First, connect Bitbucket
-
-You need an **Atlassian API token**. Bitbucket app passwords were removed in July 2026, so
-tokens are the only option now.
-
-1. Go to <https://id.atlassian.com/manage-profile/security/api-tokens>.
-2. Create an **API token with scopes** and tick these Bitbucket scopes:
-   `read:workspace:bitbucket`, `read:repository:bitbucket`, `write:repository:bitbucket`,
-   `read:pullrequest:bitbucket`, `write:pullrequest:bitbucket`.
-3. Paste it into the app along with the email address of your Atlassian account.
-
-The token is stored on your device only, exactly like the Jules key, and the app talks to
-`api.bitbucket.org` straight from the browser — still no server in the middle.
-
-If you would rather not hand over an account-wide token, use a **repository access token**
-instead (Repository settings → Access tokens in Bitbucket) and pick "Repo token" in the app.
-It can do less, which is the point.
-
-### Path 1 — mirror to a private GitHub repo (recommended)
-
-Bitbucket stays the place your code lives. A private GitHub repo holds a copy, and that copy
-is what Jules is connected to. Everything Jules can normally do keeps working, and the
-branches it creates come back to Bitbucket on their own.
-
-The app generates both files for you, filled in with your repository names:
-
-- `bitbucket-pipelines.yml` — goes in your Bitbucket repo. Every push mirrors to GitHub.
-- `.github/workflows/sync-jules-to-bitbucket.yml` — goes in the GitHub mirror. It pushes
-  branches Jules created (`jules/**`) back to Bitbucket.
-
-Follow the numbered steps on the Bitbucket screen — create the private mirror repo, enable
-Pipelines, add the SSH deploy key, paste the two files, connect Jules to the mirror at
-jules.google.com, then come back and **link** the mirror so the app knows the two belong
-together. After that, starting a task on that Bitbucket repo just works.
-
-One detail worth knowing, because most tutorials online get it wrong: the generated pipeline
-pushes with `git push --force --all`, **not** `git push --mirror`. `--mirror` deletes
-branches on the far end that don't exist locally, which would wipe out every branch Jules
-creates on GitHub on the very next sync.
-
-### Path 2 — let Jules clone Bitbucket itself (experimental)
-
-Jules starts on a blank machine, clones your Bitbucket repo, does the work, and pushes a
-`jules/...` branch straight back. GitHub is never involved.
-
-Two honest caveats:
-
-- **It may not work at all.** This depends on Jules' sandbox being allowed to reach the
-  internet, which Google does not document either way. The Bitbucket screen has a
-  **connectivity check** — one tap, one throwaway task, and you'll know for certain on your
-  own account. Run that before relying on this path.
-- **Your Bitbucket token goes to Google.** It has to travel inside the task text so Jules can
-  clone, which means it is stored with the session on Google's side. Use a repository access
-  token with a short expiry for this, not your account-wide one.
-
-### Opening the pull request
-
-Jules cannot open a Bitbucket pull request — it doesn't know Bitbucket exists. So when a task
-that started from Bitbucket finishes, the app shows a **Bitbucket PR** button and opens the
-pull request for you through Bitbucket's API.
-
-If you used the mirror path, give the back-sync workflow a moment to carry the branch across
-before pressing it.
 
 ---
 
@@ -255,9 +197,7 @@ No build step. No dependencies to install for the app itself. Edit a file, reloa
 | `css/app.css` | All styling, including dark mode and safe-area insets. |
 | `js/config.js` | Every tunable constant, including the one API base URL. |
 | `js/api.js` | The only module that talks to the Jules API. |
-| `js/bitbucket.js` | The only module that talks to the Bitbucket API. |
-| `js/bridge.js` | Builds the two ways a Bitbucket repo reaches Jules. |
-| `js/storage.js` | Reading and writing the keys and settings, defensively. |
+| `js/storage.js` | Reading and writing the key and settings, defensively. |
 | `js/ui.js` | The `el()` DOM builder and shared interface pieces. |
 | `js/activity.js` | Renders one activity from the feed. |
 | `js/diff.js` | Renders a unified diff. |
@@ -267,8 +207,9 @@ No build step. No dependencies to install for the app itself. Edit a file, reloa
 | `icons/` | App icons — generated, not hand-drawn. See below. |
 | `tools/gen_icons.py` | Regenerates those icons. |
 | `tools/mock_jules.py` | A fake Jules API for offline development and tests. |
-| `tools/mock_bitbucket.py` | A fake Bitbucket API, same idea. |
 | `tools/test_e2e.py` | The end-to-end suite, run in a headless browser. |
+| `SETUP-WINDOWS.md` | Step-by-step guide to running it from a Windows PC. |
+| `start-windows.bat` | Double-click launcher for that guide. |
 | `.github/workflows/deploy-pages.yml` | Manual "publish" button. Never runs on its own. |
 | `.nojekyll` | Tells GitHub Pages to serve the files as-is. |
 
@@ -293,6 +234,21 @@ Then open the app in a **desktop** browser with the override, and use the key `t
 http://localhost:8080/?apiBase=http://localhost:8787/v1alpha
 ```
 
+### The tests
+
+`tools/test_e2e.py` drives a real headless browser through the whole app against that mock,
+at both iPad orientations, and fails on any unexpected console error:
+
+```
+python3 tools/test_e2e.py --serve
+```
+
+`--serve` starts the web server and the mock itself; drop it if they are already running. It
+covers onboarding (including the bad-key diagnostics), a task from creation through plan
+approval to completion, the activity feed, chat, settings, and the empty state. It also
+checks two things that break silently: that no file uses an absolute path (which would break
+the app on a sub-path) and that `sw.js` caches every file the app ships.
+
 The `?apiBase=` override deliberately only accepts `localhost` and `127.0.0.1`. That's a
 safety measure: it means nobody can send you a link that quietly points the app — and your
 API key — at their own server. (It also means the mock is for desktop development; the iPad
@@ -312,27 +268,12 @@ Environment variables for testing edge cases:
 | `EMPTY=1` | `GET /sources` returns nothing — exercises the "no repositories" state. |
 | `RATELIMIT=1` | Every 3rd request answers `429` with `Retry-After: 1`. |
 
-`tools/mock_bitbucket.py` does the same for Bitbucket on port 8788, with
-`EMPTY=1` and `UNAUTHORIZED=1` switches. Its valid credentials are the email
-`test@example.com` with the token `test-bb-token`. Point the app at both mocks at once:
+End-to-end tests run against this mock, never against the real API, so they cost nothing and
+can't touch your repositories:
 
 ```
-http://localhost:8080/?apiBase=http://localhost:8787/v1alpha&bitbucketApiBase=http://localhost:8788/2.0
+python3 tools/test_e2e.py
 ```
-
-End-to-end tests run against these mocks, never against the real APIs, so they cost nothing
-and can't touch your repositories. They drive a real browser through onboarding, a whole
-task from creation to completion, chat, both Bitbucket paths, and Settings — at both iPad
-orientations — and fail on any unexpected console error:
-
-```
-python3 tools/test_e2e.py --serve
-```
-
-`--serve` starts the app server and both mocks itself; drop it if you already have them
-running. The suite also checks two things that are easy to break silently: that no file
-uses an absolute path (which would break the app on a GitHub Pages sub-path), and that
-`sw.js` caches every file the app actually ships.
 
 ### The icons
 

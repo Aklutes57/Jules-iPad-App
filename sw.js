@@ -7,7 +7,7 @@
  * ============================================================================
  */
 
-const CACHE_VERSION = 'jules-v2';
+const CACHE_VERSION = 'jules-v1';
 
 /* Every static file this app ships. Relative URLs only — the app must work from
  * a GitHub Pages sub-path such as https://user.github.io/Jules-iPad-App/. */
@@ -19,15 +19,12 @@ const PRECACHE = [
   './js/app.js',
   './js/api.js',
   './js/activity.js',
-  './js/bitbucket.js',
-  './js/bridge.js',
   './js/config.js',
   './js/diff.js',
   './js/poller.js',
   './js/router.js',
   './js/storage.js',
   './js/ui.js',
-  './js/views/bitbucket.js',
   './js/views/dashboard.js',
   './js/views/newSession.js',
   './js/views/onboarding.js',

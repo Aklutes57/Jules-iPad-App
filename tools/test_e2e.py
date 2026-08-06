@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """End-to-end tests for Jules for iPad.
 
-Drives the real app in a headless browser against the two mock servers, at both
-iPad orientations. Nothing here touches Google or Atlassian.
+Drives the real app in a headless browser against the mock Jules API, at both
+iPad orientations. Nothing here touches Google.
 
 Run:
     python3 -m http.server 8080 &          # serve the app from the repo root
     python3 tools/mock_jules.py &          # :8787
-    python3 tools/mock_bitbucket.py &      # :8788
     python3 tools/test_e2e.py
 
-Or just `python3 tools/test_e2e.py --serve`, which starts all three itself.
+Or just `python3 tools/test_e2e.py --serve`, which starts both itself.
 
 Requires the `playwright` Python package. Chromium is expected to be already
 installed (this repo's dev container ships one under /opt/pw-browsers); the
@@ -33,17 +32,13 @@ except ImportError:  # pragma: no cover
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP_PORT = 8080
 JULES_PORT = 8787
-BB_PORT = 8788
 
-BASE = (
-    "http://127.0.0.1:%d/index.html"
-    "?apiBase=http://localhost:%d/v1alpha"
-    "&bitbucketApiBase=http://localhost:%d/2.0" % (APP_PORT, JULES_PORT, BB_PORT)
+BASE = "http://127.0.0.1:%d/index.html?apiBase=http://localhost:%d/v1alpha" % (
+    APP_PORT,
+    JULES_PORT,
 )
 
 JULES_KEY = "test-key-123"
-BB_EMAIL = "test@example.com"
-BB_TOKEN = "test-bb-token"
 
 LANDSCAPE = {"width": 1180, "height": 820}
 PORTRAIT = {"width": 820, "height": 1180}
@@ -78,7 +73,7 @@ def find_chromium():
 
 @contextmanager
 def servers(enabled):
-    """Optionally run the app server and both mocks for the duration."""
+    """Optionally run the app server and the mock API for the duration."""
     procs = []
     if enabled:
         env = dict(os.environ)
@@ -93,15 +88,6 @@ def servers(enabled):
         procs.append(
             subprocess.Popen(
                 [sys.executable, os.path.join(ROOT, "tools", "mock_jules.py")],
-                cwd=ROOT,
-                env=env,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        )
-        procs.append(
-            subprocess.Popen(
-                [sys.executable, os.path.join(ROOT, "tools", "mock_bitbucket.py")],
                 cwd=ROOT,
                 env=env,
                 stdout=subprocess.DEVNULL,
@@ -136,25 +122,6 @@ def new_page(browser, viewport, console_errors):
     page.on("console", on_console)
     page.on("pageerror", lambda err: console_errors.append("pageerror: %s" % err))
     return page
-
-
-def onboard(page):
-    """Get past the key screen with a working key."""
-    page.goto(BASE, wait_until="networkidle")
-    page.wait_for_selector("input[type=password]", timeout=10000)
-    page.fill("input[type=password]", JULES_KEY)
-    page.click("button:has-text('Test')")
-    page.wait_for_selector(".diag--ok", timeout=10000)
-    page.wait_for_timeout(2200)
-
-
-def connect_bitbucket(page):
-    page.evaluate("location.hash = '#/bitbucket'")
-    page.wait_for_selector("input[type=email]", timeout=8000)
-    page.fill("input[type=email]", BB_EMAIL)
-    page.fill("input[type=password]", BB_TOKEN)
-    page.click("button:has-text('Test & connect')")
-    page.wait_for_timeout(2500)
 
 
 def shot(page, name):
@@ -196,11 +163,14 @@ def test_onboarding(page):
 
 
 def test_dashboard(page):
+    """The list itself, before any task exists. A fresh mock has no sessions,
+    so the empty state is the expected result here, not a failure."""
     print("\nDashboard")
     page.wait_for_timeout(1500)
     body = page.inner_text("body")
-    check("session list renders", page.locator(".badge").count() > 0 or "No sessions" in body)
-    check("a state badge is shown", page.locator(".badge .badge-text").count() > 0)
+    empty = "Nothing running" in body or "No sessions yet" in body
+    check("session list or empty state renders", page.locator(".badge").count() > 0 or empty, body[:80])
+    check("filter control is present", page.locator(".seg [role=tab], .seg button").count() >= 2)
 
 
 def test_jules_task_lifecycle(page):
@@ -306,100 +276,12 @@ def test_chat(page):
     page.wait_for_timeout(7000)
     count = user_bubbles()
     check("optimistic message reconciles to one copy", count == 1, "seen %d times" % count)
-
-
-def test_bitbucket_connect(page):
-    print("\nBitbucket: connect")
-    page.evaluate("location.hash = '#/bitbucket'")
-    page.wait_for_selector("input[type=email]", timeout=8000)
-
-    page.fill("input[type=email]", BB_EMAIL)
-    page.fill("input[type=password]", "wrong-token")
-    page.click("button:has-text('Test & connect')")
-    page.wait_for_selector(".diag", timeout=8000)
-    check("bad token is diagnosed", "rejected" in page.inner_text(".diag").lower())
-
-    page.fill("input[type=password]", BB_TOKEN)
-    page.click("button:has-text('Test & connect')")
-    page.wait_for_timeout(2500)
-    check("connects and reports status", "Connected" in page.inner_text("body"))
-    check("workspace + repository pickers appear", page.locator("select").count() >= 2)
-
-
-def test_mirror_wizard(page):
-    print("\nBitbucket: mirror wizard")
-    selects = page.locator("select")
-    selects.nth(1).select_option("degradation-models")
-    page.wait_for_timeout(1500)
-
-    blocks = page.locator(".code-block")
-    check("both setup files are generated", blocks.count() >= 2, "%d blocks" % blocks.count())
-    if blocks.count() < 2:
-        return
-
-    pipelines = blocks.nth(0).inner_text()
-    backsync = blocks.nth(1).inner_text()
-
-    # The whole point: --mirror would delete Jules' branches on every sync.
-    script_lines = [
-        line for line in pipelines.splitlines()
-        if line.strip().startswith("- git push")
-    ]
-    check("mirror pushes with --force --all", any("--force --all" in l for l in script_lines))
-    check("no push --mirror in the actual script", not any("--mirror" in l for l in script_lines),
-          str(script_lines))
-    check("tags are mirrored too", any("--tags" in l for l in script_lines))
-    check("mirror step is branch-filtered", "jules/**" in pipelines or "{main,master" in pipelines)
-
-    check("back-sync only fires for jules branches", "'jules/**'" in backsync)
-    check("back-sync reads a secret, not a literal token", "${{ secrets.BITBUCKET_TOKEN }}" in backsync)
-    check("back-sync uses the API-token git user", "x-bitbucket-api-token-auth" in backsync)
-    check("no real token leaked into the files", BB_TOKEN not in pipelines and BB_TOKEN not in backsync)
-    shot(page, "bitbucket-wizard")
-
-
-def test_bitbucket_task(page):
-    print("\nBitbucket: task creation")
-    page.evaluate("location.hash = '#/new'")
-    page.wait_for_selector("textarea", timeout=8000)
-    page.click("button:has-text('Bitbucket')")
-    page.wait_for_timeout(2000)
-
-    selects = page.locator("select")
-    check("bitbucket pickers render on the task screen", selects.count() >= 2)
-    if selects.count() < 2:
-        return
-    selects.nth(1).select_option("degradation-models")
-    page.wait_for_timeout(1500)
-
-    body = page.inner_text("body")
-    check("explains Jules cannot read Bitbucket directly", "mirror" in body.lower())
-
-    # With no mirror linked, the app should fall back to the Direct path and say
-    # plainly that it is experimental.
-    check("direct mode is labelled experimental", "xperimental" in body)
-
-    page.fill("textarea", "Fix the failing spectra test")
-    start = page.locator("button:has-text('Start task')")
-    check("task can be started", start.count() > 0 and start.first.is_enabled())
-    shot(page, "bitbucket-newtask")
-
-    if start.count() and start.first.is_enabled():
-        start.first.click()
-        page.wait_for_timeout(2500)
-        check("bitbucket task creates a session", "#/session/" in page.evaluate("location.hash"))
-        # The prompt carries a token; it must never be shown in the UI.
-        check("token is not displayed anywhere", BB_TOKEN not in page.inner_text("body"))
-
-
 def test_settings(page):
     print("\nSettings")
     page.evaluate("location.hash = '#/settings'")
     page.wait_for_timeout(1200)
     body = page.inner_text("body")
     check("masked key is shown", "••" in body or "…" in body)
-    check("bitbucket row is present", "Bitbucket" in body)
-    check("shows bitbucket as connected", "Connected" in body)
 
     page.click("button:has-text('Forget key')")
     page.wait_for_timeout(600)
@@ -488,9 +370,6 @@ def main():
                 test_dashboard(page)
                 test_jules_task_lifecycle(page)
                 test_chat(page)
-                test_bitbucket_connect(page)
-                test_mirror_wizard(page)
-                test_bitbucket_task(page)
                 test_settings(page)
                 page.close()
 

@@ -65,9 +65,6 @@ export function parseHash(hash) {
   if (segments[0] === 'settings') {
     return { name: 'settings', params: {}, query, path };
   }
-  if (segments[0] === 'bitbucket') {
-    return { name: 'bitbucket', params: {}, query, path };
-  }
   if (segments[0] === 'session' && segments[1]) {
     return { name: 'session', params: { id: segments[1] }, query, path };
   }
